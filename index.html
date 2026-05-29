@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Project Chakra — Live Dashboard</title>
+<title>Project Chakra — Live (v15 → Supabase)</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
 :root{--bg:#050A0F;--s1:#0D1821;--s2:#162030;--bd:#1E3448;
@@ -177,7 +177,7 @@ async function refresh(){
 
   try{
     // Fetch latest system status
-    const statusRes = await fetchTable('system_status', '?order=created_at.desc&limit=1');
+    const statusRes = await fetchTable('system_state', '?id=eq.1');
     if(statusRes.error){
       setOffline(statusRes.error);
       return;
