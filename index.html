@@ -45,6 +45,12 @@ body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;m
   background:var(--s2);border-radius:5px;font-size:.7rem;margin-bottom:6px}
 .footer{text-align:center;padding:12px;color:var(--muted);font-size:.6rem;
   border-top:1px solid var(--bd)}
+.diagbox{margin:0 16px 14px;padding:14px;background:var(--s2);border:1px dashed var(--bd);
+  border-radius:8px;font-size:.65rem;color:var(--muted);font-family:monospace;
+  word-break:break-all;line-height:1.6}
+.diagbox b{color:var(--gold)}
+.diagbox .ok{color:var(--g)}
+.diagbox .err{color:var(--r)}
 </style>
 </head>
 <body>
@@ -98,13 +104,29 @@ body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;m
   </div>
 </div>
 
+<div class="diagbox" id="diag">
+  <b>🔧 Connection Diagnostic</b><br>
+  <span id="diag-content">Initializing...</span>
+</div>
+
 <div class="footer">
   PROJECT CHAKRA V15 · 17 AGENTS · 14 LAYERS · 11 ALT DATA SOURCES · NOT FINANCIAL ADVICE<br>
-  Auto-refresh 30s · <span id="ft">--</span>
+  Auto-refresh 30s · Direct Supabase connection · <span id="ft">--</span>
 </div>
 
 <script>
-const API = 'https://project-chakra-production.up.railway.app';
+// ============================================================
+// CONFIG - reads directly from Supabase REST API
+// ============================================================
+const SUPABASE_URL = 'https://jvnaphbygmqjeyawkmnz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2bmFwaGJ5Z21xamV5YXdrbW56Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NDU0NDksImV4cCI6MjA5MzEyMTQ0OX0.Suz0H3jrDn89vzCLCPPFIbo3oVYcqVbn7d_OtB3zLR0';
+// ============================================================
+
+const H = {
+  'apikey': SUPABASE_ANON_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+  'Accept': 'application/json'
+};
 
 setInterval(()=>{
   const n=new Date();
@@ -114,100 +136,183 @@ setInterval(()=>{
 },1000);
 
 function g(id){return document.getElementById(id)}
-function set(id,val,cls=''){const e=g(id);if(e){e.textContent=val;if(cls)e.className='kv '+cls;}}
+function pick(obj, ...keys){
+  if(!obj) return null;
+  for(const k of keys){
+    if(obj[k]!==undefined && obj[k]!==null) return obj[k];
+  }
+  return null;
+}
+function diag(html){g('diag-content').innerHTML=html}
+function setOffline(reason){
+  g('dot').style.color='#EF476F';
+  g('stxt').textContent='OFFLINE';
+  g('s-bot').textContent='● OFFLINE';
+  g('s-bot').style.color='#EF476F';
+  diag(`<span class="err">✗ ${reason}</span>`);
+}
+function setOnline(extra){
+  g('dot').style.color='#06D6A0';
+  g('stxt').textContent='● LIVE';
+  g('s-bot').textContent='● ONLINE';
+  g('s-bot').style.color='#06D6A0';
+  diag(`<span class="ok">✓ Supabase connected</span> · ${extra}`);
+}
+
+async function fetchTable(table, query=''){
+  const url = `${SUPABASE_URL}/rest/v1/${table}${query}`;
+  const r = await fetch(url, {headers: H, signal: AbortSignal.timeout(10000)});
+  if(r.status === 404) return {error: `Table '${table}' does not exist`};
+  if(r.status === 401) return {error: 'Anon key rejected by Supabase (401)'};
+  if(!r.ok) return {error: `HTTP ${r.status} on ${table}`};
+  const data = await r.json();
+  return {data};
+}
 
 async function refresh(){
+  if(SUPABASE_ANON_KEY.includes('PASTE_YOUR')){
+    setOffline('Supabase anon key not configured in index.html');
+    return;
+  }
+
   try{
-    const res=await fetch(API+'/api/status',{signal:AbortSignal.timeout(8000)});
-    if(!res.ok)throw new Error(res.status);
-    const d=await res.json();
-    const m=d.metrics||{};
+    // Fetch latest system status
+    const statusRes = await fetchTable('system_status', '?order=created_at.desc&limit=1');
+    if(statusRes.error){
+      setOffline(statusRes.error);
+      return;
+    }
+    const rows = statusRes.data || [];
+    if(rows.length === 0){
+      setOffline("system_status table is EMPTY — bot has not written any data yet. Check Render service.");
+      return;
+    }
 
-    g('dot').style.color='#06D6A0';
-    g('stxt').textContent='● LIVE';
-    g('s-bot').textContent='● ONLINE';
-    g('s-bot').style.color='#06D6A0';
+    const m = rows[0];
+    const ts = pick(m, 'updated_at', 'created_at', 'timestamp', 'time');
+    let ageMin = null;
+    if(ts){
+      try{
+        const lastDt = new Date(ts);
+        ageMin = (Date.now() - lastDt.getTime()) / 60000;
+      }catch(e){}
+    }
 
-    const bal=m.balance||100000;
-    const pnl=m.pnl||(bal-100000);
-    const wr=(m.win_rate||0)<2?(m.win_rate||0)*100:(m.win_rate||0);
+    if(ageMin !== null && ageMin > 30){
+      setOffline(`Bot is DEAD - last write to Supabase was ${(ageMin/60).toFixed(1)} hours ago. Render service has stopped.`);
+    } else if(ageMin !== null && ageMin > 10){
+      g('dot').style.color='#F0A500';
+      g('stxt').textContent='STALE';
+      g('s-bot').textContent='● STALE';
+      g('s-bot').style.color='#F0A500';
+      diag(`<span style="color:var(--gold)">⚠ Last heartbeat ${ageMin.toFixed(1)} min ago (cycle should be 5 min)</span>`);
+    } else {
+      setOnline(`Last heartbeat ${ageMin!==null?ageMin.toFixed(1)+' min ago':'unknown'} · ${rows.length} status row(s)`);
+    }
 
-    g('k-bal').textContent='$'+bal.toLocaleString('en',{maximumFractionDigits:0});
+    // Map fields with multiple possible names
+    const bal = pick(m, 'balance', 'account_balance') ?? 100000;
+    const pnl = pick(m, 'pnl', 'profit_loss', 'unrealized_pl') ?? (bal - 100000);
+    let wr = pick(m, 'win_rate', 'winrate') ?? 0;
+    if(wr < 2) wr = wr * 100;
+    const totalTrades = pick(m, 'total_trades', 'trade_count', 'trades') ?? 0;
+    const wins = pick(m, 'wins', 'winning_trades') ?? 0;
+    const losses = pick(m, 'losses', 'losing_trades') ?? 0;
+    const openTrades = pick(m, 'open_trades', 'open_positions') ?? 0;
+    const cycle = pick(m, 'cycle', 'cycle_number', 'iteration') ?? '--';
+    const regime = pick(m, 'regime', 'market_regime') ?? '--';
 
-    const pe=g('k-pnl');
-    pe.textContent=(pnl>=0?'+$':'-$')+Math.abs(pnl).toLocaleString('en',{maximumFractionDigits:0});
-    pe.className='kv'+(pnl>=0?'':' r');
+    g('k-bal').textContent='$'+Number(bal).toLocaleString('en',{maximumFractionDigits:0});
 
-    const we=g('k-wr');
-    we.textContent=wr.toFixed(1)+'%';
-    we.className='kv '+(wr>=45?'gold':wr>=35?'w':'r');
+    const pe = g('k-pnl');
+    pe.textContent = (pnl>=0?'+$':'-$') + Math.abs(Number(pnl)).toLocaleString('en',{maximumFractionDigits:0});
+    pe.className = 'kv' + (pnl>=0?'':' r');
 
-    g('k-tr').textContent=m.total_trades||0;
-    g('k-w').textContent=m.wins||0;
-    g('k-l').textContent=m.losses||0;
-    g('k-op').textContent=m.open_trades||0;
-    g('s-cyc').textContent='#'+(m.cycle||'--');
-    g('s-upd').textContent=(m.last_updated||'').slice(11,16)||'--';
+    const we = g('k-wr');
+    we.textContent = Number(wr).toFixed(1)+'%';
+    we.className = 'kv ' + (wr>=45?'gold':wr>=35?'w':'r');
 
-    const reg=m.regime||'--';
-    const re=g('k-reg');
-    re.textContent=reg;
-    re.className='kv '+({TRENDING:'gold',RANGING:'b',VOLATILE:'r'}[reg]||'w');
+    g('k-tr').textContent = totalTrades;
+    g('k-w').textContent = wins;
+    g('k-l').textContent = losses;
+    g('k-op').textContent = openTrades;
+    g('s-cyc').textContent = '#' + cycle;
+    g('s-upd').textContent = ts ? String(ts).slice(11,16) : '--';
 
-    const tot=m.total_trades||0;
-    const ls=g('s-lrn');
-    if(tot>=20){ls.textContent='● ACTIVE';ls.style.color='#06D6A0';}
-    else{ls.textContent=`⏳ ${tot}/20`;ls.style.color='#F0A500';}
+    const re = g('k-reg');
+    re.textContent = regime;
+    re.className = 'kv ' + ({TRENDING:'gold',RANGING:'b',VOLATILE:'r'}[regime]||'w');
 
-    // Positions
-    const pos=d.open_trades||[];
-    g('pos-list').innerHTML=pos.length?pos.map(p=>`
-      <div class="trow">
-        <span class="pair">${(p.pair||'').replace('_','/')}</span>
-        <span class="${(p.direction||'').toLowerCase()}">${p.direction||''}</span>
-        <span style="color:var(--muted)">${((p.confidence||0)*100).toFixed(0)}%</span>
-        <span style="color:var(--muted);font-size:.65rem">${p.strategy||''}</span>
-      </div>`).join(''):
-      '<div style="color:var(--muted);text-align:center;padding:14px;font-size:.72rem">No open positions</div>';
+    const ls = g('s-lrn');
+    if(totalTrades >= 20){
+      ls.textContent = '● ACTIVE';
+      ls.style.color = '#06D6A0';
+    } else {
+      ls.textContent = `⏳ ${totalTrades}/20`;
+      ls.style.color = '#F0A500';
+    }
 
-    // Alt data
-    const ad=d.alt_data||{};
-    const fg=ad.fear_greed?.score||50;
-    const fge=g('a-fg');
-    fge.textContent=Math.round(fg);
-    fge.style.color=fg<30?'#EF476F':fg>70?'#06D6A0':'#F0A500';
+    // Alt data - try nested objects then flat columns
+    const altObj = pick(m, 'alt_data', 'alternative_data') || m;
+    const fg = pick(altObj.fear_greed||{}, 'score', 'value') ?? pick(m, 'fear_greed', 'fg_score') ?? null;
+    const fge = g('a-fg');
+    if(fg !== null){
+      fge.textContent = Math.round(Number(fg));
+      fge.style.color = fg<30?'#EF476F':fg>70?'#06D6A0':'#F0A500';
+    }
 
-    const yld=ad.yields?.trend||'--';
-    const ye=g('a-yld');
-    ye.textContent=yld;
-    ye.style.color=yld==='UP'?'#EF476F':yld==='DOWN'?'#06D6A0':'#5A7A8A';
+    const yldTrend = pick(altObj.yields||{}, 'trend') ?? pick(m, 'yields_trend');
+    if(yldTrend){
+      const ye = g('a-yld');
+      ye.textContent = yldTrend;
+      ye.style.color = yldTrend==='UP'?'#EF476F':yldTrend==='DOWN'?'#06D6A0':'#5A7A8A';
+    }
 
-    const oil=ad.commodities?.OIL?.change||0;
-    g('a-oil').textContent=(oil>=0?'▲ ':'▼ ')+Math.abs(oil).toFixed(1)+'%';
-    g('a-oil').style.color=oil>=0?'#06D6A0':'#EF476F';
+    const oil = pick(altObj.commodities?.OIL||{}, 'change') ?? pick(m, 'oil_change');
+    if(oil !== null && oil !== undefined){
+      g('a-oil').textContent = (oil>=0?'▲ ':'▼ ')+Math.abs(Number(oil)).toFixed(1)+'%';
+      g('a-oil').style.color = oil>=0?'#06D6A0':'#EF476F';
+    }
 
-    const gld=ad.commodities?.GOLD?.change||0;
-    g('a-gld').textContent=(gld>=0?'▲ ':'▼ ')+Math.abs(gld).toFixed(1)+'%';
-    g('a-gld').style.color=gld>=0?'#F0A500':'#EF476F';
+    const gld = pick(altObj.commodities?.GOLD||{}, 'change') ?? pick(m, 'gold_change');
+    if(gld !== null && gld !== undefined){
+      g('a-gld').textContent = (gld>=0?'▲ ':'▼ ')+Math.abs(Number(gld)).toFixed(1)+'%';
+      g('a-gld').style.color = gld>=0?'#F0A500':'#EF476F';
+    }
 
-    const btc=ad.crypto?.sentiment||'--';
-    g('a-btc').textContent=btc;
-    g('a-btc').style.color=btc==='RISK_ON'?'#06D6A0':btc==='RISK_OFF'?'#EF476F':'#5A7A8A';
+    const btc = pick(altObj.crypto||{}, 'sentiment') ?? pick(m, 'btc_sentiment');
+    if(btc){
+      g('a-btc').textContent = btc;
+      g('a-btc').style.color = btc==='RISK_ON'?'#06D6A0':btc==='RISK_OFF'?'#EF476F':'#5A7A8A';
+    }
 
-    const dp=ad.darkpool?.trend||'--';
-    g('a-dp').textContent=dp;
-    g('a-dp').style.color=dp==='SURGE'?'#F0A500':dp==='DROP'?'#EF476F':'#5A7A8A';
+    const dp = pick(altObj.darkpool||{}, 'trend') ?? pick(m, 'darkpool_trend');
+    if(dp){
+      g('a-dp').textContent = dp;
+      g('a-dp').style.color = dp==='SURGE'?'#F0A500':dp==='DROP'?'#EF476F':'#5A7A8A';
+    }
+
+    // Open positions
+    const tradesRes = await fetchTable('trades', '?status=eq.OPEN&select=*&order=created_at.desc&limit=10');
+    if(!tradesRes.error){
+      const pos = tradesRes.data || [];
+      g('pos-list').innerHTML = pos.length ? pos.map(p=>`
+        <div class="trow">
+          <span class="pair">${(pick(p,'pair','symbol','instrument')||'').replace('_','/')}</span>
+          <span class="${(pick(p,'direction','side','action')||'').toLowerCase()}">${pick(p,'direction','side','action')||''}</span>
+          <span style="color:var(--muted)">${(Number(pick(p,'confidence','conf')||0)*100).toFixed(0)}%</span>
+          <span style="color:var(--muted);font-size:.65rem">${pick(p,'strategy','agent','source')||''}</span>
+        </div>`).join('') :
+        '<div style="color:var(--muted);text-align:center;padding:14px;font-size:.72rem">No open positions</div>';
+    }
 
   }catch(e){
-    g('dot').style.color='#EF476F';
-    g('stxt').textContent='OFFLINE';
-    g('s-bot').textContent='● OFFLINE';
-    g('s-bot').style.color='#EF476F';
+    setOffline(`Network error: ${e.message || e}`);
   }
 }
 
 refresh();
-setInterval(refresh,30000);
+setInterval(refresh, 30000);
 </script>
 </body>
 </html>
