@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project Chakra — Live Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
+:root{--bg:#050A0F;--s1:#0D1821;--s2:#162030;--bd:#1E3448;
+  --g:#06D6A0;--r:#EF476F;--gold:#F0A500;--b:#118AB2;
+  --text:#E8F4F8;--muted:#5A7A8A}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh}
+.hdr{background:#0D1821;border-bottom:3px solid var(--g);padding:14px 24px;
+  display:flex;justify-content:space-between;align-items:center}
+.logo{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;
+  background:linear-gradient(90deg,var(--g),#00E5FF);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.status{font-size:.7rem;display:flex;gap:10px;align-items:center}
+.dot{animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.kgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px}
+.kcard{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:16px;
+  position:relative;overflow:hidden}
+.kcard::after{content:'';position:absolute;bottom:0;left:0;height:2px;width:100%;background:var(--g)}
+.kcard.r::after{background:var(--r)}.kcard.gold::after{background:var(--gold)}
+.kl{color:var(--muted);font-size:.58rem;text-transform:uppercase;letter-spacing:.1em}
+.kv{font-size:1.5rem;font-weight:700;margin-top:5px;color:var(--g)}
+.kv.r{color:var(--r)}.kv.gold{color:var(--gold)}.kv.b{color:var(--b)}.kv.w{color:var(--text)}
+.panel{background:var(--s1);border:1px solid var(--bd);border-radius:12px;
+  margin:0 16px 14px;padding:18px}
+.ptitle{color:var(--gold);font-size:.72rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;margin-bottom:12px;padding-bottom:8px;
+  border-bottom:1px solid var(--bd)}
+.agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.acard{background:var(--s2);border-radius:8px;padding:11px;text-align:center}
+.al{color:var(--muted);font-size:.56rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+.av{font-size:.85rem;font-weight:700}
+.trow{display:flex;justify-content:space-between;padding:9px 12px;
+  background:var(--s2);border-radius:6px;margin-bottom:6px;font-size:.76rem}
+.buy{color:var(--g);font-weight:700}.sell{color:var(--r);font-weight:700}
+.pair{color:#FFD166;font-weight:700}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 16px 14px}
+.srow{display:flex;justify-content:space-between;padding:8px 10px;
+  background:var(--s2);border-radius:5px;font-size:.7rem;margin-bottom:6px}
+.footer{text-align:center;padding:12px;color:var(--muted);font-size:.6rem;
+  border-top:1px solid var(--bd)}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="logo">⚡ PROJECT CHAKRA</div>
+  <div class="status">
+    <span class="dot" id="dot" style="color:var(--gold)">●</span>
+    <span id="stxt">CONNECTING...</span>
+    <span id="clock" style="color:var(--b)">--:--</span>
+  </div>
+</div>
+
+<div class="kgrid">
+  <div class="kcard"><div class="kl">Balance</div><div class="kv" id="k-bal">$100,000</div></div>
+  <div class="kcard"><div class="kl">P&amp;L</div><div class="kv" id="k-pnl">$0</div></div>
+  <div class="kcard gold"><div class="kl">Win Rate</div><div class="kv gold" id="k-wr">0.0%</div></div>
+  <div class="kcard"><div class="kl">Total Trades</div><div class="kv gold" id="k-tr">0</div></div>
+  <div class="kcard"><div class="kl">Wins</div><div class="kv" id="k-w">0</div></div>
+  <div class="kcard r"><div class="kl">Losses</div><div class="kv r" id="k-l">0</div></div>
+  <div class="kcard"><div class="kl">Open Now</div><div class="kv b" id="k-op">0</div></div>
+  <div class="kcard"><div class="kl">Regime</div><div class="kv gold" id="k-reg" style="font-size:.9rem">--</div></div>
+</div>
+
+<div class="panel">
+  <div class="ptitle">🌍 Alternative Data — 6 Live Sources</div>
+  <div class="agrid">
+    <div class="acard"><div class="al">😨 Fear &amp; Greed</div><div class="av" id="a-fg" style="color:var(--gold)">--</div></div>
+    <div class="acard"><div class="al">📈 US Yields</div><div class="av" id="a-yld" style="color:var(--text)">--</div></div>
+    <div class="acard"><div class="al">🛢️ Oil</div><div class="av" id="a-oil" style="color:var(--text)">--</div></div>
+    <div class="acard"><div class="al">🥇 Gold</div><div class="av" id="a-gld" style="color:var(--gold)">--</div></div>
+    <div class="acard"><div class="al">₿ BTC</div><div class="av" id="a-btc" style="color:var(--text)">--</div></div>
+    <div class="acard"><div class="al">🏊 Dark Pool</div><div class="av" id="a-dp" style="color:var(--text)">--</div></div>
+  </div>
+</div>
+
+<div class="two">
+  <div class="panel" style="margin:0">
+    <div class="ptitle">📋 Open Positions</div>
+    <div id="pos-list"><div style="color:var(--muted);text-align:center;padding:14px;font-size:.72rem">No open positions</div></div>
+  </div>
+  <div class="panel" style="margin:0">
+    <div class="ptitle">⚡ System</div>
+    <div class="srow"><span style="color:var(--muted)">Bot</span><span id="s-bot" style="color:var(--gold)">CHECKING...</span></div>
+    <div class="srow"><span style="color:var(--muted)">Learning</span><span id="s-lrn" style="color:var(--gold)">⏳ WARMING</span></div>
+    <div class="srow"><span style="color:var(--muted)">Cycle</span><span style="color:var(--b)">5 MIN</span></div>
+    <div class="srow"><span style="color:var(--muted)">Pairs</span><span style="color:var(--g)">12 ACTIVE</span></div>
+    <div class="srow"><span style="color:var(--muted)">Agents</span><span style="color:var(--g)">17 RUNNING</span></div>
+    <div class="srow"><span style="color:var(--muted)">Last Update</span><span id="s-upd" style="color:var(--text)">--</span></div>
+    <div class="srow"><span style="color:var(--muted)">Cycle #</span><span id="s-cyc" style="color:var(--text)">--</span></div>
+  </div>
+</div>
+
+<div class="footer">
+  PROJECT CHAKRA V15 · 17 AGENTS · 14 LAYERS · 11 ALT DATA SOURCES · NOT FINANCIAL ADVICE<br>
+  Auto-refresh 30s · <span id="ft">--</span>
+</div>
+
+<script>
+const API = 'https://project-chakra-production.up.railway.app';
+
+setInterval(()=>{
+  const n=new Date();
+  const t=`${String(n.getUTCHours()).padStart(2,'0')}:${String(n.getUTCMinutes()).padStart(2,'0')} UTC`;
+  document.getElementById('clock').textContent=t;
+  document.getElementById('ft').textContent=t;
+},1000);
+
+function g(id){return document.getElementById(id)}
+function set(id,val,cls=''){const e=g(id);if(e){e.textContent=val;if(cls)e.className='kv '+cls;}}
+
+async function refresh(){
+  try{
+    const res=await fetch(API+'/api/status',{signal:AbortSignal.timeout(8000)});
+    if(!res.ok)throw new Error(res.status);
+    const d=await res.json();
+    const m=d.metrics||{};
+
+    g('dot').style.color='#06D6A0';
+    g('stxt').textContent='● LIVE';
+    g('s-bot').textContent='● ONLINE';
+    g('s-bot').style.color='#06D6A0';
+
+    const bal=m.balance||100000;
+    const pnl=m.pnl||(bal-100000);
+    const wr=(m.win_rate||0)<2?(m.win_rate||0)*100:(m.win_rate||0);
+
+    g('k-bal').textContent='$'+bal.toLocaleString('en',{maximumFractionDigits:0});
+
+    const pe=g('k-pnl');
+    pe.textContent=(pnl>=0?'+$':'-$')+Math.abs(pnl).toLocaleString('en',{maximumFractionDigits:0});
+    pe.className='kv'+(pnl>=0?'':' r');
+
+    const we=g('k-wr');
+    we.textContent=wr.toFixed(1)+'%';
+    we.className='kv '+(wr>=45?'gold':wr>=35?'w':'r');
+
+    g('k-tr').textContent=m.total_trades||0;
+    g('k-w').textContent=m.wins||0;
+    g('k-l').textContent=m.losses||0;
+    g('k-op').textContent=m.open_trades||0;
+    g('s-cyc').textContent='#'+(m.cycle||'--');
+    g('s-upd').textContent=(m.last_updated||'').slice(11,16)||'--';
+
+    const reg=m.regime||'--';
+    const re=g('k-reg');
+    re.textContent=reg;
+    re.className='kv '+({TRENDING:'gold',RANGING:'b',VOLATILE:'r'}[reg]||'w');
+
+    const tot=m.total_trades||0;
+    const ls=g('s-lrn');
+    if(tot>=20){ls.textContent='● ACTIVE';ls.style.color='#06D6A0';}
+    else{ls.textContent=`⏳ ${tot}/20`;ls.style.color='#F0A500';}
+
+    // Positions
+    const pos=d.open_trades||[];
+    g('pos-list').innerHTML=pos.length?pos.map(p=>`
+      <div class="trow">
+        <span class="pair">${(p.pair||'').replace('_','/')}</span>
+        <span class="${(p.direction||'').toLowerCase()}">${p.direction||''}</span>
+        <span style="color:var(--muted)">${((p.confidence||0)*100).toFixed(0)}%</span>
+        <span style="color:var(--muted);font-size:.65rem">${p.strategy||''}</span>
+      </div>`).join(''):
+      '<div style="color:var(--muted);text-align:center;padding:14px;font-size:.72rem">No open positions</div>';
+
+    // Alt data
+    const ad=d.alt_data||{};
+    const fg=ad.fear_greed?.score||50;
+    const fge=g('a-fg');
+    fge.textContent=Math.round(fg);
+    fge.style.color=fg<30?'#EF476F':fg>70?'#06D6A0':'#F0A500';
+
+    const yld=ad.yields?.trend||'--';
+    const ye=g('a-yld');
+    ye.textContent=yld;
+    ye.style.color=yld==='UP'?'#EF476F':yld==='DOWN'?'#06D6A0':'#5A7A8A';
+
+    const oil=ad.commodities?.OIL?.change||0;
+    g('a-oil').textContent=(oil>=0?'▲ ':'▼ ')+Math.abs(oil).toFixed(1)+'%';
+    g('a-oil').style.color=oil>=0?'#06D6A0':'#EF476F';
+
+    const gld=ad.commodities?.GOLD?.change||0;
+    g('a-gld').textContent=(gld>=0?'▲ ':'▼ ')+Math.abs(gld).toFixed(1)+'%';
+    g('a-gld').style.color=gld>=0?'#F0A500':'#EF476F';
+
+    const btc=ad.crypto?.sentiment||'--';
+    g('a-btc').textContent=btc;
+    g('a-btc').style.color=btc==='RISK_ON'?'#06D6A0':btc==='RISK_OFF'?'#EF476F':'#5A7A8A';
+
+    const dp=ad.darkpool?.trend||'--';
+    g('a-dp').textContent=dp;
+    g('a-dp').style.color=dp==='SURGE'?'#F0A500':dp==='DROP'?'#EF476F':'#5A7A8A';
+
+  }catch(e){
+    g('dot').style.color='#EF476F';
+    g('stxt').textContent='OFFLINE';
+    g('s-bot').textContent='● OFFLINE';
+    g('s-bot').style.color='#EF476F';
+  }
+}
+
+refresh();
+setInterval(refresh,30000);
+</script>
+</body>
+</html>
